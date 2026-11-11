@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrewRest - Alojamientos para Tripulantes de Cabina</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        skyline: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        crewGold: '#d97706',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-slate-900 text-white border-b border-slate-800">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center text-white">
+                    <i class="fa-solid fa-plane"></i>
+                </div>
+                <span class="font-bold text-lg tracking-tight">CrewRoom</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleMyBookings()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-medium flex items-center gap-1.5 transition-colors">
+                    <i class="fa-solid fa-list-check"></i> Mis Reservas <span id="booking-count" class="bg-sky-500 text-white px-1.5 py-0.2 rounded-full text-[10px] ml-1">0</span>
+                </button>
+                <button onclick="openAdminModal()" class="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-2 rounded-lg font-medium flex items-center gap-1.5 transition-colors">
+                    <i class="fa-solid fa-lock text-xs"></i> Admin
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        
+        <!-- VISTA DE RESERVA (ÚNICA HABITACIÓN) -->
+        <div id="booking-view" class="grid md:grid-cols-12 gap-8">
+            
+            <!-- Detalles de la Habitación -->
+            <div class="md:col-span-6 space-y-4">
+                <div class="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 h-64">
+                    <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80" alt="Habitación TCP" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/600x400/0f172a/ffffff?text=Habitacion+TCP'">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between">
+                        <h1 class="text-2xl font-bold text-slate-900">Habitación TCP / Layover</h1>
+                        <span class="text-xl font-extrabold text-sky-600"><span id="display-price-per-night">35</span>€ <span class="text-xs font-normal text-slate-500">/ noche</span></span>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-1">Alojamiento exclusivo para Tripulantes de Cabina de Pasajeros (TCP).</p>
+                    
+                    <!-- Alert de fechas bloqueadas si aplican -->
+                    <div id="date-warning" class="hidden mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span>Las fechas seleccionadas incluyen días no disponibles/bloqueados.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulario de Selección de Fechas y Datos -->
+            <div class="md:col-span-6 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                <h2 class="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-calendar-days text-sky-600"></i> Reservar Fechas
+                </h2>
+
+                <form id="reservation-form" onsubmit="startPaymentFlow(event)" class="space-y-4">
+                    <!-- Selector de Fechas -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Entrada (Check-in)</label>
+                            <input type="date" id="checkin-date" required onchange="calculateTotal()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Salida (Check-out)</label>
+                            <input type="date" id="checkout-date" required onchange="calculateTotal()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Resumen del cálculo -->
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex justify-between items-center font-medium">
+                        <span text-slate-600><span id="num-nights" class="font-bold text-slate-900">1</span> noche(s)</span>
+                        <span class="text-slate-900 text-sm font-extrabold">Total: <span id="total-price" class="text-sky-600">35€</span></span>
+                    </div>
+
+                    <!-- Datos TCP -->
+                    <div class="space-y-3 pt-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo</label>
+                            <input type="text" id="guest-name" required placeholder="Tu nombre" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Teléfono / WhatsApp</label>
+                            <input type="tel" id="guest-phone" required placeholder="+34 600 000 000" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Aerolínea</label>
+                                <input type="text" id="guest-airline" required placeholder="Ej. Iberia / Vueling" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Staff ID / Licencia</label>
+                                <input type="text" id="guest-staff-id" required placeholder="ID Empleado" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-credit-card"></i> Proceder al Pago
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- SECCIÓN: PANEL ADMINISTRADOR (Oculta por defecto) -->
+        <div id="admin-view" class="hidden space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-user-shield text-amber-500"></i> Panel de Control Admin
+                    </h2>
+                    <p class="text-xs text-slate-500">Gestión de tarifa, calendario de disponibilidad y reservas</p>
+                </div>
+                <button onclick="closeAdminView()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg font-semibold transition-colors">
+                    Cerrar Admin
+                </button>
+            </div>
+
+            <!-- Ajustes Rápidos -->
+            <div class="grid md:grid-cols-3 gap-4">
+                <!-- Cambiar Precio -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2 md:col-span-1">
+                    <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+                        <i class="fa-solid fa-euro-sign text-emerald-600"></i> Tarifa Noche
+                    </h3>
+                    <div class="flex gap-2">
+                        <input type="number" id="admin-price-input" min="1" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none font-bold text-slate-800">
+                        <button onclick="saveAdminPrice()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl whitespace-nowrap">
+                            Guardar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Leyenda del Calendario -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm md:col-span-2 flex flex-col justify-center space-y-2">
+                    <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Estado del Calendario (Haz clic en un día para Bloquear / Desbloquear)</span>
+                    <div class="flex flex-wrap items-center gap-4 text-xs font-medium">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 border border-emerald-600 inline-block"></span>
+                            <span class="text-slate-700">Libre (Disponible)</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-3.5 rounded-full bg-red-500 border border-red-600 inline-block"></span>
+                            <span class="text-slate-700">Reservado (Ocupado)</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-500 inline-block"></span>
+                            <span class="text-slate-700">Bloqueado (Admin)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CALENDARIO VISUAL EN GRANDE -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <!-- Selector Navegación Mes -->
+                <div class="flex items-center justify-between">
+                    <h3 id="calendar-month-year" class="text-lg font-bold text-slate-900 capitalize"></h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="changeAdminMonth(-1)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700">
+                            <i class="fa-solid fa-chevron-left text-xs"></i>
+                        </button>
+                        <button onclick="resetAdminMonth()" class="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">
+                            Hoy
+                        </button>
+                        <button onclick="changeAdminMonth(1)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700">
+                            <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Días de la semana -->
+                <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+                </div>
+
+                <!-- Grid Días Mes -->
+                <div id="admin-calendar-grid" class="grid grid-cols-7 gap-2">
+                    <!-- Generado dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Reservas Totales Admin -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center justify-between">
+                    <span><i class="fa-solid fa-list text-sky-600 mr-2"></i>Historial de Reservas</span>
+                    <span id="admin-total-bookings" class="text-xs font-normal text-slate-500">0 en total</span>
+                </h3>
+                <div id="admin-bookings-list" class="space-y-3">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN: MIS RESERVAS -->
+        <div id="my-bookings-view" class="hidden space-y-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-slate-900">Tus Reservas Guardadas</h2>
+                <button onclick="toggleMyBookings()" class="text-xs text-sky-600 hover:underline font-semibold">Volver a reservar</button>
+            </div>
+            <div id="bookings-list" class="space-y-3">
+                <!-- Se rellena con JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL DE PAGO (SIMULACIÓN PASARELA STRIPE / BIZUM) -->
+    <div id="payment-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="font-extrabold text-slate-900 text-lg">Pasarela de Pago</span>
+                    <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">100% Seguro</span>
+                </div>
+                <button onclick="closePaymentModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Resumen Pago -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex justify-between items-center">
+                <span class="text-slate-600">Total a pagar:</span>
+                <span id="modal-payment-total" class="text-lg font-bold text-sky-600">0€</span>
+            </div>
+
+            <!-- Métodos de pago -->
+            <div class="space-y-3">
+                <label class="block text-xs font-semibold text-slate-700">Selecciona Método de Pago</label>
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" onclick="selectPaymentMethod('card')" id="pay-method-card" class="p-3 border-2 border-sky-500 bg-sky-50/50 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-credit-card text-sky-600 text-lg"></i> Tarjeta Débito/Crédito
+                    </button>
+                    <button type="button" onclick="selectPaymentMethod('bizum')" id="pay-method-bizum" class="p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1">
+                        <i class="fa-solid fa-mobile-screen text-emerald-600 text-lg"></i> Bizum
+                    </button>
+                </div>
+            </div>
+
+            <!-- Campos Tarjeta (Simulación) -->
+            <div id="card-fields" class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Número de Tarjeta</label>
+                    <input type="text" id="pay-card-number" placeholder="4500 0000 0000 0000" maxlength="19" value="4548 1234 5678 9010" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Caducidad</label>
+                        <input type="text" placeholder="MM/YY" maxlength="5" value="12/28" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">CVC / CVV</label>
+                        <input type="password" placeholder="123" maxlength="3" value="888" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Campos Bizum -->
+            <div id="bizum-fields" class="hidden space-y-3">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Número de Móvil Bizum</label>
+                    <input type="tel" id="pay-bizum-phone" placeholder="+34 600 000 000" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none">
+                </div>
+            </div>
+
+            <button onclick="processPayment()" id="process-pay-btn" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                <span>Pagar y Confirmar</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL LOGIN ADMIN (PIN) -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-xs w-full p-6 text-center shadow-xl space-y-4">
+            <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-lg">
+                <i class="fa-solid fa-key"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Acceso Administrador</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Introduce el código PIN (por defecto: 1234)</p>
+            </div>
+            <div>
+                <input type="password" id="admin-pin-input" placeholder="PIN" maxlength="8" class="w-full text-center text-lg tracking-widest font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                <p id="admin-error-msg" class="text-red-500 text-xs mt-1.5 hidden font-medium">PIN Incorrecto</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeAdminModal()" class="w-1/2 py-2 bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl">Cancelar</button>
+                <button onclick="verifyAdminPin()" class="w-1/2 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs rounded-xl">Entrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMACIÓN RESERVA -->
+    <div id="confirmation-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-xl space-y-4">
+            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">¡Reserva y Pago Confirmados!</h3>
+                <p class="text-xs text-slate-500 mt-1">Código de reserva: <span id="res-code" class="font-bold text-slate-800"></span></p>
+            </div>
+            <div id="modal-details" class="bg-slate-50 p-3 rounded-xl text-left text-xs space-y-1 border border-slate-200">
+                <!-- JS Populated -->
+            </div>
+            <button onclick="closeConfirmationModal()" class="w-full py-2.5 bg-slate-900 text-white font-semibold text-xs rounded-xl">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const DEFAULT_PIN = "1234";
+        let roomPrice = parseFloat(localStorage.getItem('tcp_room_price')) || 35;
+        let blockedDates = JSON.parse(localStorage.getItem('tcp_blocked_dates')) || [];
+        let bookings = JSON.parse(localStorage.getItem('tcp_room_bookings')) || [];
+
+        let currentAdminDate = new Date();
+        let currentPaymentMethod = 'card';
+        let pendingBookingData = null;
+
+        window.onload = function() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            const formatDate = date => date.toISOString().split('T')[0];
+            
+            const checkinInput = document.getElementById('checkin-date');
+            const checkoutInput = document.getElementById('checkout-date');
+
+            checkinInput.min = formatDate(today);
+            checkinInput.value = formatDate(today);
+
+            checkoutInput.min = formatDate(tomorrow);
+            checkoutInput.value = formatDate(tomorrow);
+
+            updatePriceDisplay();
+            calculateTotal();
+            updateCount();
+        };
+
+        function updatePriceDisplay() {
+            document.getElementById('display-price-per-night').textContent = roomPrice;
+        }
+
+        // Obtener el estado exacto de una fecha concreta (YYYY-MM-DD)
+        function getDateStatus(dateStr) {
+            // Verificar si está bloqueada por Admin
+            if (blockedDates.includes(dateStr)) {
+                return { status: 'blocked', booking: null };
+            }
+
+            // Verificar si está ocupada por alguna reserva
+            const target = new Date(dateStr);
+            for (let b of bookings) {
+                const checkin = new Date(b.checkin);
+                const checkout = new Date(b.checkout);
+                // Si la fecha cae dentro del rango de estancia (checkin inclusive, checkout exclusivo para día de salida)
+                if (target >= checkin && target < checkout) {
+                    return { status: 'booked', booking: b };
+                }
+            }
+
+            return { status: 'free', booking: null };
+        }
+
+        function calculateTotal() {
+            const checkinVal = document.getElementById('checkin-date').value;
+            const checkoutVal = document.getElementById('checkout-date').value;
+            if(!checkinVal || !checkoutVal) return;
+
+            const checkin = new Date(checkinVal);
+            const checkout = new Date(checkoutVal);
+
+            if (checkout <= checkin) {
+                const nextDay = new Date(checkin);
+                nextDay.setDate(nextDay.getDate() + 1);
+                document.getElementById('checkout-date').value = nextDay.toISOString().split('T')[0];
+                calculateTotal();
+                return;
+            }
+
+            // Comprobar si hay días no disponibles (bloqueados u ocupados) en el rango seleccionado
+            let isUnavailable = false;
+            let tempDate = new Date(checkin);
+            while (tempDate < checkout) {
+                const dateStr = tempDate.toISOString().split('T')[0];
+                const dateState = getDateStatus(dateStr);
+                if (dateState.status === 'blocked' || dateState.status === 'booked') {
+                    isUnavailable = true;
+                    break;
+                }
+                tempDate.setDate(tempDate.getDate() + 1);
+            }
+
+            const warningEl = document.getElementById('date-warning');
+            const submitBtn = document.getElementById('submit-btn');
+            if (isUnavailable) {
+                warningEl.classList.remove('hidden');
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                warningEl.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            const diffDays = Math.ceil(Math.abs(checkout - checkin) / (1000 * 60 * 60 * 24));
+            const total = diffDays * roomPrice;
+
+            document.getElementById('num-nights').textContent = diffDays;
+            document.getElementById('total-price').textContent = `${total}€`;
+        }
+
+        // --- FLUJO DE RESERVA Y PAGO ---
+        function startPaymentFlow(e) {
+            e.preventDefault();
+
+            const checkin = document.getElementById('checkin-date').value;
+            const checkout = document.getElementById('checkout-date').value;
+            const name = document.getElementById('guest-name').value;
+            const phone = document.getElementById('guest-phone').value;
+            const airline = document.getElementById('guest-airline').value;
+            const staffId = document.getElementById('guest-staff-id').value;
+
+            const nights = parseInt(document.getElementById('num-nights').textContent);
+            const total = nights * roomPrice;
+
+            pendingBookingData = {
+                checkin, checkout, name, phone, airline, staffId, nights, total
+            };
+
+            document.getElementById('modal-payment-total').textContent = `${total}€`;
+            document.getElementById('pay-bizum-phone').value = phone;
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        function selectPaymentMethod(method) {
+            currentPaymentMethod = method;
+            const cardBtn = document.getElementById('pay-method-card');
+            const bizumBtn = document.getElementById('pay-method-bizum');
+            const cardFields = document.getElementById('card-fields');
+            const bizumFields = document.getElementById('bizum-fields');
+
+            if (method === 'card') {
+                cardBtn.className = "p-3 border-2 border-sky-500 bg-sky-50/50 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1";
+                bizumBtn.className = "p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1";
+                cardFields.classList.remove('hidden');
+                bizumFields.classList.add('hidden');
+            } else {
+                bizumBtn.className = "p-3 border-2 border-emerald-500 bg-emerald-50/50 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1";
+                cardBtn.className = "p-3 border-2 border-slate-200 hover:border-slate-300 rounded-xl text-center text-xs font-bold text-slate-800 flex flex-col items-center gap-1";
+                bizumFields.classList.remove('hidden');
+                cardFields.classList.add('hidden');
+            }
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        function processPayment() {
+            const btn = document.getElementById('process-pay-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Procesando Pago...`;
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = `Pagar y Confirmar`;
+                closePaymentModal();
+                finalizeReservation();
+            }, 1200);
+        }
+
+        function finalizeReservation() {
+            if(!pendingBookingData) return;
+
+            const code = 'TCP-' + Math.floor(1000 + Math.random() * 9000);
+            const newBooking = {
+                id: Date.now(),
+                code,
+                ...pendingBookingData,
+                paymentMethod: currentPaymentMethod === 'card' ? 'Tarjeta (Stripe)' : 'Bizum',
+                status: 'PAGADO'
+            };
+
+            bookings.unshift(newBooking);
+            localStorage.setItem('tcp_room_bookings', JSON.stringify(bookings));
+
+            updateCount();
+
+            // Modal Confirmación
+            document.getElementById('res-code').textContent = code;
+            document.getElementById('modal-details').innerHTML = `
+                <p><strong>Fechas:</strong> ${newBooking.checkin} al ${newBooking.checkout}</p>
+                <p><strong>Noches:</strong> ${newBooking.nights} (${newBooking.total}€)</p>
+                <p><strong>Nombre:</strong> ${newBooking.name}</p>
+                <p><strong>Aerolínea:</strong> ${newBooking.airline} (${newBooking.staffId})</p>
+                <p><strong>Pago:</strong> ${newBooking.paymentMethod} - <span class="text-emerald-600 font-bold">Completado</span></p>
+            `;
+            document.getElementById('confirmation-modal').classList.remove('hidden');
+
+            // Limpiar formulario
+            document.getElementById('guest-name').value = '';
+            document.getElementById('guest-phone').value = '';
+            document.getElementById('guest-airline').value = '';
+            document.getElementById('guest-staff-id').value = '';
+            pendingBookingData = null;
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmation-modal').classList.add('hidden');
+        }
+
+        // --- ADMINISTRACIÓN Y CALENDARIO ---
+        function openAdminModal() {
+            document.getElementById('admin-pin-input').value = '';
+            document.getElementById('admin-error-msg').classList.add('hidden');
+            document.getElementById('admin-login-modal').classList.remove('hidden');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('admin-login-modal').classList.add('hidden');
+        }
+
+        function verifyAdminPin() {
+            const inputPin = document.getElementById('admin-pin-input').value;
+            if (inputPin === DEFAULT_PIN) {
+                closeAdminModal();
+                showAdminView();
+            } else {
+                document.getElementById('admin-error-msg').classList.remove('hidden');
+            }
+        }
+
+        function showAdminView() {
+            document.getElementById('booking-view').classList.add('hidden');
+            document.getElementById('my-bookings-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.remove('hidden');
+
+            document.getElementById('admin-price-input').value = roomPrice;
+            renderAdminCalendar();
+            renderAdminBookings();
+        }
+
+        function closeAdminView() {
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('booking-view').classList.remove('hidden');
+        }
+
+        function saveAdminPrice() {
+            const newPrice = parseFloat(document.getElementById('admin-price-input').value);
+            if (newPrice > 0) {
+                roomPrice = newPrice;
+                localStorage.setItem('tcp_room_price', roomPrice);
+                updatePriceDisplay();
+                calculateTotal();
+            }
+        }
+
+        function changeAdminMonth(delta) {
+            currentAdminDate.setMonth(currentAdminDate.getMonth() + delta);
+            renderAdminCalendar();
+        }
+
+        function resetAdminMonth() {
+            currentAdminDate = new Date();
+            renderAdminCalendar();
+        }
+
+        function toggleAdminBlockDate(dateStr) {
+            const dateState = getDateStatus(dateStr);
+            // No permitir alternar si ya hay una reserva activa del cliente
+            if (dateState.status === 'booked') {
+                alert(`El día ${dateStr} está reservado por ${dateState.booking.name} (${dateState.booking.airline}). No se puede bloquear.`);
+                return;
+            }
+
+            if (blockedDates.includes(dateStr)) {
+                blockedDates = blockedDates.filter(d => d !== dateStr);
+            } else {
+                blockedDates.push(dateStr);
+            }
+
+            localStorage.setItem('tcp_blocked_dates', JSON.stringify(blockedDates));
+            renderAdminCalendar();
+            calculateTotal();
+        }
+
+        function renderAdminCalendar() {
+            const monthYearEl = document.getElementById('calendar-month-year');
+            const gridEl = document.getElementById('admin-calendar-grid');
+            gridEl.innerHTML = '';
+
+            const year = currentAdminDate.getFullYear();
+            const month = currentAdminDate.getMonth();
+
+            // Formato de nombre del mes
+            const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(currentAdminDate);
+            monthYearEl.textContent = monthName;
+
+            // Primer día del mes y total de días
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const numDays = lastDay.getDate();
+
+            // Ajuste para comenzar en Lunes (0 -> Lun, 6 -> Dom)
+            let startingDay = firstDay.getDay() - 1;
+            if (startingDay === -1) startingDay = 6;
+
+            // Días de relleno mes anterior
+            for (let i = 0; i < startingDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = "h-20 bg-slate-50/50 rounded-xl border border-slate-100";
+                gridEl.appendChild(emptyCell);
+            }
+
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Renderizar cada día del mes
+            for (let day = 1; day <= numDays; day++) {
+                const dateObj = new Date(year, month, day);
+                // Evitar desfases UTC formateando explícitamente YYYY-MM-DD
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const stateInfo = getDateStatus(dateStr);
+
+                const dayCell = document.createElement('div');
+                
+                let bgClasses = "";
+                let statusBadge = "";
+                let statusText = "";
+
+                if (stateInfo.status === 'booked') {
+                    bgClasses = "bg-red-500 text-white border-red-600 shadow-sm";
+                    statusBadge = "<span class='text-[10px] bg-red-700/80 px-1.5 py-0.5 rounded font-bold uppercase'>Reservado</span>";
+                    statusText = `<div class='text-[11px] font-semibold truncate mt-1'>${stateInfo.booking.name}</div><div class='text-[10px] opacity-80 truncate'>${stateInfo.booking.airline}</div>`;
+                } else if (stateInfo.status === 'blocked') {
+                    bgClasses = "bg-amber-400 text-slate-900 border-amber-500 cursor-pointer hover:bg-amber-500 shadow-sm";
+                    statusBadge = "<span class='text-[10px] bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold uppercase'>Bloqueado</span>";
+                    statusText = "<div class='text-[10px] mt-1 font-medium'>Clic para liberar</div>";
+                } else {
+                    bgClasses = "bg-emerald-500 text-white border-emerald-600 cursor-pointer hover:bg-emerald-600 shadow-sm";
+                    statusBadge = "<span class='text-[10px] bg-emerald-700/80 px-1.5 py-0.5 rounded font-bold uppercase'>Libre</span>";
+                    statusText = "<div class='text-[10px] mt-1 opacity-90'>Clic p/ bloquear</div>";
+                }
+
+                const isToday = dateStr === todayStr;
+                const todayRing = isToday ? "ring-2 ring-sky-600 ring-offset-2" : "";
+
+                dayCell.className = `h-20 p-2 rounded-xl border flex flex-col justify-between transition-all select-none ${bgClasses} ${todayRing}`;
+                dayCell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm ${isToday ? 'underline underline-offset-2' : ''}">${day}</span>
+                        ${statusBadge}
+                    </div>
+                    ${statusText}
+                `;
+
+                if (stateInfo.status !== 'booked') {
+                    dayCell.onclick = () => toggleAdminBlockDate(dateStr);
+                }
+
+                gridEl.appendChild(dayCell);
+            }
+        }
+
+        function renderAdminBookings() {
+            const container = document.getElementById('admin-bookings-list');
+            document.getElementById('admin-total-bookings').textContent = `${bookings.length} reserva(s)`;
+            container.innerHTML = '';
+
+            if (bookings.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No hay reservas registradas.</p>';
+                return;
+            }
+
+            bookings.forEach(b => {
+                const card = document.createElement('div');
+                card.className = "p-3 border border-slate-200 rounded-xl bg-slate-50 text-xs flex justify-between items-center";
+                card.innerHTML = `
+                    <div>
+                        <div class="font-bold text-slate-900">${b.code} - ${b.name} (${b.airline})</div>
+                        <div class="text-slate-500">${b.checkin} al ${b.checkout} (${b.nights} noche/s)</div>
+                        <div class="text-slate-400 text-[11px]">Staff ID: ${b.staffId} | Tel: ${b.phone} | ${b.paymentMethod || 'Pago Online'}</div>
+                    </div>
+                    <div class="text-right space-y-1">
+                        <div class="font-extrabold text-sky-600 text-sm">${b.total}€</div>
+                        <button onclick="deleteBooking(${b.id})" class="text-red-600 hover:underline text-[11px]">Cancelar/Eliminar</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // --- VISTA MIS RESERVAS ---
+        function updateCount() {
+            document.getElementById('booking-count').textContent = bookings.length;
+        }
+
+        function toggleMyBookings() {
+            const bookingView = document.getElementById('booking-view');
+            const myBookingsView = document.getElementById('my-bookings-view');
+            const adminView = document.getElementById('admin-view');
+
+            adminView.classList.add('hidden');
+
+            if (myBookingsView.classList.contains('hidden')) {
+                bookingView.classList.add('hidden');
+                myBookingsView.classList.remove('hidden');
+                renderBookingsList();
+            } else {
+                myBookingsView.classList.add('hidden');
+                bookingView.classList.remove('hidden');
+            }
+        }
+
+        function renderBookingsList() {
+            const list = document.getElementById('bookings-list');
+            list.innerHTML = '';
+
+            if (bookings.length === 0) {
+                list.innerHTML = '<p class="text-sm text-slate-500 text-center py-8">No tienes reservas guardadas.</p>';
+                return;
+            }
+
+            bookings.forEach(b => {
+                const item = document.createElement('div');
+                item.className = "bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center text-xs";
+                item.innerHTML = `
+                    <div>
+                        <div class="font-bold text-slate-900 text-sm mb-0.5">${b.code} - ${b.name}</div>
+                        <p class="text-slate-500">${b.checkin} al ${b.checkout} (${b.nights} noche/s) - ${b.airline} (${b.staffId})</p>
+                        <p class="text-slate-500">Tel: ${b.phone} | <span class="text-emerald-600 font-semibold">${b.paymentMethod || 'Pagado'}</span></p>
+                    </div>
+                    <div class="text-right space-y-2">
+                        <div class="font-extrabold text-sky-600 text-sm">${b.total}€</div>
+                        <button onclick="deleteBooking(${b.id})" class="text-red-500 hover:underline">Eliminar</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function deleteBooking(id) {
+            bookings = bookings.filter(b => b.id !== id);
+            localStorage.setItem('tcp_room_bookings', JSON.stringify(bookings));
+            updateCount();
+            renderBookingsList();
+            if(!document.getElementById('admin-view').classList.contains('hidden')) {
+                renderAdminCalendar();
+                renderAdminBookings();
+            }
+        }
+    </script>
+</body>
+</html>
