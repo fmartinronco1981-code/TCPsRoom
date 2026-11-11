@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrewRoom - Reserva TCP</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col" x-data="app()">
+
+    <!-- Header Adaptable -->
+    <header class="bg-slate-800 border-b border-slate-700 px-4 py-3 flex flex-wrap justify-between items-center gap-3 shadow-md">
+        <div class="flex items-center space-x-2">
+            <span class="text-2xl">✈️</span>
+            <h1 class="text-lg font-bold tracking-wide">CrewRoom <span class="text-xs bg-sky-600 px-2 py-0.5 rounded-full text-white">TCPs</span></h1>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button @click="activeTab = 'home'" :class="activeTab === 'home' ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-3 py-1.5 rounded-lg text-xs font-medium transition">Inicio</button>
+            <button @click="activeTab = 'client'" :class="activeTab === 'client' ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-3 py-1.5 rounded-lg text-xs font-medium transition">Reservar</button>
+            <button @click="activeTab = 'my-bookings'" :class="activeTab === 'my-bookings' ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-3 py-1.5 rounded-lg text-xs font-medium transition">Mis Reservas</button>
+            <button @click="activeTab = 'instructions'" :class="activeTab === 'instructions' ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-300'" class="px-3 py-1.5 rounded-lg text-xs font-medium transition">Guía</button>
+            
+            <!-- Botón de Login / Registro Siempre Visible -->
+            <template x-if="!currentUser">
+                <button @click="showAuthModal = true; authMode = 'login'" class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg text-xs font-medium transition shadow">Login / Registro</button>
+            </template>
+            <template x-if="currentUser">
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs text-sky-300 bg-slate-900 px-2 py-1 rounded border border-slate-700" x-text="currentUser.email"></span>
+                    <button @click="logoutUser()" class="bg-red-950/40 border border-red-800 text-red-300 px-2.5 py-1 rounded text-xs font-medium">Salir</button>
+                </div>
+            </template>
+
+            <button @click="openAdminModal()" class="bg-slate-800 border border-slate-600 hover:bg-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition">🔒 Admin</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- VISTA INICIO (GALERÍA DE FOTOS Y EXPLICACIONES ADMIN) -->
+        <div x-show="activeTab === 'home'" class="space-y-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-6">
+                <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div class="space-y-2">
+                        <h2 class="text-3xl font-bold" x-text="siteTexts.text_title || 'Habitación Exclusiva Tripulación'"></h2>
+                        <p class="text-slate-300 text-base" x-text="siteTexts.text_subtitle || 'Ubicación estratégica cerca del aeropuerto. Confort y descanso garantizado.'"></p>
+                    </div>
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 text-center min-w-[140px]">
+                        <span class="text-3xl font-extrabold text-sky-400" x-text="pricePerNight + '€'"></span>
+                        <span class="text-slate-400 text-xs block uppercase tracking-wider">/ noche</span>
+                    </div>
+                </div>
+
+                <!-- Contenedor Preparado para las Fotos -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col items-center justify-center h-64 text-slate-500 relative group">
+                        <!-- Aquí se subirá/colgará la foto principal cuando la tengáis -->
+                        <span class="text-4xl mb-2">📷</span>
+                        <p class="text-xs">Espacio para Foto Principal (Habitación)</p>
+                        <span class="absolute bottom-2 text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">Pendiente de colgar foto</span>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col items-center justify-center h-64 text-slate-500 relative group">
+                        <!-- Aquí se subirá la segunda foto -->
+                        <span class="text-4xl mb-2">📷</span>
+                        <p class="text-xs">Espacio para Foto Secundaria (Baño / Comodidades)</p>
+                        <span class="absolute bottom-2 text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">Pendiente de colgar foto</span>
+                    </div>
+                </div>
+
+                <!-- Explicación detallada editable desde Admin -->
+                <div class="bg-slate-900/60 p-5 rounded-xl border border-slate-700 space-y-3">
+                    <h3 class="font-bold text-sky-300 text-sm">✨ Características y Comodidades</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed" x-text="siteTexts.text_features || 'Habitación diseñada específicamente para el descanso de tripulaciones. Cama de matrimonio, aire acondicionado silencioso, Wi-Fi de alta velocidad, escritorio y total independencia con cerradura autónoma.'"></p>
+                </div>
+
+                <button @click="activeTab = 'client'" class="w-full bg-sky-600 hover:bg-sky-500 font-semibold py-3.5 rounded-xl transition shadow-lg shadow-sky-600/20 text-center block">
+                    Reservar Habitación Ahora
+                </button>
+            </div>
+        </div>
+
+        <!-- VISTA CLIENTE (RESERVA CON CALENDARIO VISUAL) -->
+        <div x-show="activeTab === 'client'" class="space-y-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-2xl font-bold">Selecciona tus fechas</h2>
+                        <p class="text-slate-400 text-sm mt-1">Elige los días de entrada y salida en el calendario interactivo.</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-2xl font-extrabold text-sky-400" x-text="pricePerNight + '€'"></span>
+                        <span class="text-slate-400 text-xs block">/ noche</span>
+                    </div>
+                </div>
+
+                <!-- CALENDARIO VISUAL PARA SELECCIONAR FECHAS -->
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-sm text-sky-300">Calendario de Disponibilidad</h3>
+                            <p class="text-xs text-slate-400" x-text="selectionStep === 'in' ? '1. Haz clic en el día de ENTRADA' : '2. Haz clic en el día de SALIDA'"></p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold" x-text="monthNames[clientMonth] + ' ' + clientYear"></span>
+                            <div class="space-x-1">
+                                <button @click="changeClientMonth(-1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-xs">&lt;</button>
+                                <button @click="changeClientMonth(1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-xs">&gt;</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Leyenda -->
+                    <div class="flex flex-wrap gap-4 text-xs text-slate-300 pt-1">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-900/60 border border-emerald-600"></span> Libre</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-sky-600"></span> Tu Selección</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-900/50 border border-red-700"></span> Ocupado</span>
+                    </div>
+
+                    <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400 font-medium">
+                        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1.5">
+                        <template x-for="day in clientCalendarDays">
+                            <div @click="day.dateStr && selectClientDate(day.dateStr, day.status)" 
+                                 :class="{
+                                     'bg-slate-800/20 text-slate-600 cursor-default': !day.dateStr,
+                                     'bg-emerald-900/30 border-emerald-700 text-emerald-200 hover:bg-emerald-800/50 cursor-pointer': day.status === 'free',
+                                     'bg-sky-600 text-white font-bold cursor-pointer shadow': day.status === 'selected',
+                                     'bg-yellow-900/40 border-yellow-700 text-yellow-300 opacity-60 cursor-not-allowed': day.status === 'blocked',
+                                     'bg-red-900/50 border-red-800 text-red-300 opacity-60 cursor-not-allowed': day.status === 'booked'
+                                 }"
+                                 class="h-10 rounded-lg border border-slate-700 flex flex-col items-center justify-center text-xs transition">
+                                <span x-text="day.dayNum"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Resumen de fechas elegidas -->
+                <div class="p-4 bg-slate-900/70 rounded-xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div class="text-xs sm:text-sm space-y-1">
+                        <p><strong class="text-slate-300">Entrada:</strong> <span class="text-sky-400 font-mono" x-text="checkIn || 'No seleccionada'"></span></p>
+                        <p><strong class="text-slate-300">Salida:</strong> <span class="text-sky-400 font-mono" x-text="checkOut || 'No seleccionada'"></span></p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">Total (<span x-text="totalNights"></span> noches):</p>
+                        <p class="text-xl font-bold text-emerald-400" x-text="totalPrice + '€'"></p>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm" x-show="errorMessage" x-text="errorMessage"></div>
+
+                <button @click="proceedToCheckout()" class="w-full bg-sky-600 hover:bg-sky-500 font-semibold py-3 rounded-xl transition shadow-lg shadow-sky-600/20">
+                    Proceder al Pago
+                </button>
+            </div>
+        </div>
+
+        <!-- VISTA: MIS RESERVAS (CON DOBLE CLAVE: PRINCIPAL Y HABITACIÓN) -->
+        <div x-show="activeTab === 'my-bookings'" class="space-y-4">
+            <h2 class="text-xl font-bold mb-2">Mis Reservas Activas</h2>
+            <p class="text-xs text-slate-400 mb-4">Inicia sesión con tu cuenta para consultar tus estancias y accesos autónomos.</p>
+            
+            <template x-if="!currentUser">
+                <div class="bg-slate-800 border border-slate-700 p-6 rounded-xl text-center space-y-3">
+                    <p class="text-sm text-slate-300">Debes iniciar sesión para consultar tus reservas asociadas.</p>
+                    <button @click="showAuthModal = true; authMode = 'login'" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-xl text-sm font-medium transition">Iniciar Sesión</button>
+                </div>
+            </template>
+
+            <template x-if="currentUser && myBookings.length === 0">
+                <div class="bg-slate-800 border border-slate-700 p-6 rounded-xl text-center text-slate-400 text-sm">
+                    No tienes ninguna reserva registrada actualmente con esta cuenta.
+                </div>
+            </template>
+            
+            <template x-for="booking in myBookings" :key="booking.id">
+                <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-sky-400 text-base" x-text="'Ref: ' + booking.id"></p>
+                            <p class="text-sm text-slate-200 mt-0.5" x-text="booking.check_in + ' al ' + booking.check_out + ' (' + booking.nights + ' noches)'"></p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-3 py-1 bg-emerald-900/40 text-emerald-400 text-xs font-semibold rounded-full border border-emerald-700" x-text="booking.status"></span>
+                            <p class="text-sm font-bold mt-1 text-emerald-300" x-text="booking.total + '€'"></p>
+                        </div>
+                    </div>
+
+                    <!-- Doble Clave de Acceso (Puerta Principal y Habitación) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/70 p-3 rounded-lg border border-slate-700 text-xs">
+                        <div class="space-y-1">
+                            <p class="text-slate-400">🏢 <strong class="text-slate-200">Puerta Principal / Portal:</strong></p>
+                            <p class="font-mono text-sky-300 text-sm tracking-wider" x-text="'PIN: ' + (booking.door_pin || '----')"></p>
+                        </div>
+                        <div class="space-y-1 border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-2">
+                            <p class="text-slate-400">🚪 <strong class="text-slate-200">Puerta de Habitación:</strong></p>
+                            <p class="font-mono text-emerald-300 text-sm tracking-wider" x-text="'PIN: ' + (booking.room_pin || '----')"></p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-700 text-xs text-slate-400">
+                        <span>TCP: <strong class="text-slate-300" x-text="booking.name + ' (' + booking.airline + ')'"></strong></span>
+                        <button @click="cancelMyBooking(booking.id, booking.check_in)" class="text-red-400 hover:text-red-300 font-medium bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-900/50 transition">
+                            Cancelar Reserva
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- VISTA: GUÍA Y ACCESOS -->
+        <div x-show="activeTab === 'instructions'" class="space-y-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+                <h2 class="text-xl font-bold text-sky-400" x-text="siteTexts.text_guide_title || 'Guía de Llegada y Normas'"></h2>
+                <div class="space-y-3 text-sm text-slate-300">
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-2">
+                        <h3 class="font-bold text-white">📍 1. Ubicación y Transporte</h3>
+                        <p class="text-slate-400" x-text="siteTexts.text_guide_transport || 'Cerca del aeropuerto. Accesible mediante taxi/VTC o autobús directo.'"></p>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-2">
+                        <h3 class="font-bold text-white">🔑 2. Doble Sistema de Acceso Autónomo</h3>
+                        <p class="text-slate-400" x-text="siteTexts.text_guide_access || 'Recibirás un PIN independiente para el acceso general al edificio y otro exclusivo para tu puerta de habitación tras confirmar la reserva.'"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER RGPD -->
+    <footer class="bg-slate-800 border-t border-slate-700 text-center py-4 text-xs text-slate-400 space-y-1">
+        <p>Plataforma exclusiva para TCPs. Datos alojados de forma segura conforme al RGPD.</p>
+    </footer>
+
+    <!-- MODAL DE AUTENTICACIÓN (LOGIN / CREAR CUENTA) -->
+    <div x-show="showAuthModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-xl font-bold" x-text="authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta TCP'"></h3>
+                <button @click="showAuthModal = false" class="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs font-medium">
+                <button @click="authMode = 'login'" :class="authMode === 'login' ? 'bg-sky-600 text-white' : 'text-slate-400'" class="py-2 rounded-lg transition">Login</button>
+                <button @click="authMode = 'signup'" :class="authMode === 'signup' ? 'bg-sky-600 text-white' : 'text-slate-400'" class="py-2 rounded-lg transition">Crear Cuenta</button>
+            </div>
+
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                <input type="email" x-model="authEmail" placeholder="correo@airline.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                <input type="password" x-model="authPassword" placeholder="••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-sky-500">
+            </div>
+
+            <div class="pt-2">
+                <button @click="handleAuth()" class="w-full bg-sky-600 hover:bg-sky-500 py-3 rounded-xl text-sm font-medium transition shadow-lg shadow-sky-600/20" x-text="authMode === 'login' ? 'Acceder a mi cuenta' : 'Registrarse ahora'"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE PAGO FUNCIONAL Y RGPD -->
+    <div x-show="showPaymentModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold">Datos del TCP y Pago Seguro</h3>
+            <div>
+                <label class="block text-xs text-slate-400 mb-1">Nombre Completo</label>
+                <input type="text" x-model="tempBooking.name" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Aerolínea</label>
+                    <input type="text" x-model="tempBooking.airline" placeholder="Ej. Iberia" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Staff ID / Licencia</label>
+                    <input type="text" x-model="tempBooking.staffId" placeholder="ID" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white">
+                </div>
+            </div>
+
+            <!-- Datos de Tarjeta Simulados Funcionales -->
+            <div class="space-y-3 pt-2 border-t border-slate-700" x-show="payMethod === 'card'">
+                <label class="block text-xs text-slate-400">Detalles de Tarjeta Bancaria</label>
+                <input type="text" placeholder="4532 •••• •••• 8921" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-mono">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" placeholder="MM/AA" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-mono text-center">
+                    <input type="password" placeholder="CVV" maxlength="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-mono text-center">
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-2 border-t border-slate-700" x-show="payMethod === 'bizum'">
+                <label class="block text-xs text-slate-400">Número de Teléfono Bizum</label>
+                <input type="tel" placeholder="+34 600 000 000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white font-mono">
+            </div>
+
+            <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700 space-y-2">
+                <label class="flex items-start space-x-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" x-model="rgpdAccepted" class="mt-0.5 rounded bg-slate-800 border-slate-600 text-sky-600">
+                    <span>Acepto la política de privacidad y el tratamiento temporal de mis datos según el RGPD.</span>
+                </label>
+            </div>
+
+            <div class="pt-2 border-t border-slate-700">
+                <label class="block text-xs text-slate-400 mb-2">Método de Pago</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button @click="payMethod = 'card'" :class="payMethod === 'card' ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700'" class="border p-2.5 rounded-xl text-left text-xs font-medium">💳 Tarjeta</button>
+                    <button @click="payMethod = 'bizum'" :class="payMethod === 'bizum' ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700'" class="border p-2.5 rounded-xl text-left text-xs font-medium">📱 Bizum</button>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-2">
+                <button @click="showPaymentModal = false" class="w-1/2 bg-slate-700 py-2.5 rounded-xl text-sm font-medium">Cancelar</button>
+                <button @click="confirmBooking()" :disabled="isProcessing" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center space-x-2">
+                    <span x-show="!isProcessing" x-text="'Pagar ' + totalPrice + '€'"></span>
+                    <span x-show="isProcessing">Procesando...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADMIN -->
+    <div x-show="showAdminModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            
+            <template x-if="!isAdminLoggedIn">
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold">Acceso Administrador</h3>
+                    <input type="password" x-model="adminPinInput" placeholder="Introduce PIN (1234)" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white">
+                    <button @click="loginAdmin()" class="w-full bg-sky-600 py-2.5 rounded-xl font-medium">Entrar</button>
+                    <button @click="showAdminModal = false" class="w-full bg-slate-700 py-2 rounded-xl text-sm">Cerrar</button>
+                </div>
+            </template>
+
+            <template x-if="isAdminLoggedIn">
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xl font-bold">Panel Admin Avanzado</h3>
+                        <button @click="isAdminLoggedIn = false; showAdminModal = false" class="text-xs text-red-400 bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-800">Cerrar sesión</button>
+                    </div>
+
+                    <!-- Cambiar Precio -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <p class="font-medium text-sm">Precio por Noche (€)</p>
+                        </div>
+                        <input type="number" x-model.number="pricePerNight" @change="updatePriceInDB()" class="w-24 bg-slate-800 border border-slate-700 rounded-lg p-2 text-center text-white font-bold">
+                    </div>
+
+                    <!-- Editor de Textos de la Web en Directo -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-3">
+                        <h4 class="font-semibold text-sm text-sky-400">Modificar Textos Públicos (Se guardan al cambiar)</h4>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Título Principal</label>
+                            <input type="text" x-model="siteTexts.text_title" @change="updateTextInDB('text_title', siteTexts.text_title)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Subtítulo</label>
+                            <input type="text" x-model="siteTexts.text_subtitle" @change="updateTextInDB('text_subtitle', siteTexts.text_subtitle)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Descripción / Comodidades (Inicio)</label>
+                            <textarea rows="3" x-model="siteTexts.text_features" @change="updateTextInDB('text_features', siteTexts.text_features)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Guía: Título</label>
+                            <input type="text" x-model="siteTexts.text_guide_title" @change="updateTextInDB('text_guide_title', siteTexts.text_guide_title)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Guía: Transporte</label>
+                            <input type="text" x-model="siteTexts.text_guide_transport" @change="updateTextInDB('text_guide_transport', siteTexts.text_guide_transport)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Guía: Acceso</label>
+                            <input type="text" x-model="siteTexts.text_guide_access" @change="updateTextInDB('text_guide_access', siteTexts.text_guide_access)" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        </div>
+                    </div>
+
+                    <!-- Calendario Admin -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="font-semibold text-sm" x-text="monthNames[adminMonth] + ' ' + adminYear"></h4>
+                            <div class="space-x-1">
+                                <button @click="changeAdminMonth(-1)" class="px-3 py-1 bg-slate-800 rounded text-sm">&lt;</button>
+                                <button @click="changeAdminMonth(1)" class="px-3 py-1 bg-slate-800 rounded text-sm">&gt;</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400 mb-2 font-medium">
+                            <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1.5">
+                            <template x-for="day in adminCalendarDays">
+                                <div @click="day.dateStr && toggleDateStatus(day.dateStr)" 
+                                     :class="{
+                                         'bg-slate-800/40': !day.dateStr,
+                                         'bg-emerald-900/40 border-emerald-700 text-emerald-300': day.status === 'free',
+                                         'bg-yellow-900/40 border-yellow-700 text-yellow-300': day.status === 'blocked',
+                                         'bg-red-900/40 border-red-700 text-red-300': day.status === 'booked'
+                                     }"
+                                     class="h-10 rounded-lg border flex flex-col items-center justify-center text-xs cursor-pointer">
+                                    <span x-text="day.dayNum"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Reservas y Edición de Doble PIN en Directo -->
+                    <div>
+                        <h4 class="font-semibold text-sm mb-2">Todas las Reservas y Claves de Puertas</h4>
+                        <div class="space-y-3 max-h-48 overflow-y-auto">
+                            <template x-for="b in allBookings" :key="b.id">
+                                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2 text-xs">
+                                    <div class="flex justify-between items-center">
+                                        <p class="font-bold text-sky-400" x-text="b.name + ' (' + b.airline + ')'"></p>
+                                        <button @click="cancelBookingAdmin(b.id)" class="text-red-400 hover:text-red-300">Eliminar</button>
+                                    </div>
+                                    <p class="text-slate-400" x-text="'Estancia: ' + b.check_in + ' al ' + b.check_out + ' | Correo: ' + b.user_email"></p>
+                                    <div class="grid grid-cols-2 gap-2 pt-1">
+                                        <div class="flex items-center space-x-1">
+                                            <span class="text-slate-300">PIN Principal:</span>
+                                            <input type="text" x-model="b.door_pin" @change="updateDoorPin(b.id, b.door_pin, b.room_pin)" class="w-16 bg-slate-800 border border-slate-700 rounded px-1 py-1 text-center font-mono text-sky-300 font-bold">
+                                        </div>
+                                        <div class="flex items-center space-x-1">
+                                            <span class="text-slate-300">PIN Hab.:</span>
+                                            <input type="text" x-model="b.room_pin" @change="updateDoorPin(b.id, b.door_pin, b.room_pin)" class="w-16 bg-slate-800 border border-slate-700 rounded px-1 py-1 text-center font-mono text-emerald-300 font-bold">
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Script de Aplicación -->
+    <script>
+        const SUPABASE_URL = 'https://bxpptrxwmjyaqtpxagoa.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_-H5GGzFvf009AsE7NM2CRw_n801fD9O';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        function app() {
+            return {
+                activeTab: 'home',
+                currentUser: null,
+                showAuthModal: false,
+                authMode: 'login',
+                authEmail: '',
+                authPassword: '',
+
+                pricePerNight: 55,
+                siteTexts: {},
+                checkIn: '',
+                checkOut: '',
+                totalNights: 0,
+                totalPrice: 0,
+                errorMessage: '',
+                showPaymentModal: false,
+                isProcessing: false,
+                payMethod: 'card',
+                tempBooking: { name: '', airline: '', staffId: '' },
+                rgpdAccepted: false,
+                myBookings: [],
+                allBookings: [],
+                blockedDatesObj: {},
+                
+                showAdminModal: false,
+                isAdminLoggedIn: false,
+                adminPinInput: '',
+                
+                clientYear: new Date().getFullYear(),
+                clientMonth: new Date().getMonth(),
+                adminYear: new Date().getFullYear(),
+                adminMonth: new Date().getMonth(),
+                monthNames: ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+                clientCalendarDays: [],
+                adminCalendarDays: [],
+                selectionStep: 'in',
+
+                async init() {
+                    let sessionData = await supabaseClient.auth.getSession();
+                    if (sessionData.data.session) {
+                        this.currentUser = sessionData.data.session.user;
+                        await this.fetchMyBookings();
+                    }
+
+                    supabaseClient.auth.onAuthStateChange((event, session) => {
+                        this.currentUser = session ? session.user : null;
+                        if (this.currentUser) this.fetchMyBookings();
+                        else this.myBookings = [];
+                    });
+
+                    await this.loadConfig();
+                    await this.loadTexts();
+                    await this.loadBlockedDates();
+                    await this.loadAllBookings();
+                    this.generateClientCalendar();
+                    this.generateAdminCalendar();
+                },
+
+                async handleAuth() {
+                    if (!this.authEmail || !this.authPassword) {
+                        alert('Introduce correo y contraseña.');
+                        return;
+                    }
+                    if (this.authMode === 'signup') {
+                        let { error } = await supabaseClient.auth.signUp({ email: this.authEmail, password: this.authPassword });
+                        if (error) alert(error.message);
+                        else { alert('¡Cuenta creada con éxito! Revisa tu correo electrónico para confirmar tu cuenta antes de iniciar sesión.'); this.authMode = 'login'; }
+                    } else {
+                        let { error } = await supabaseClient.auth.signInWithPassword({ email: this.authEmail, password: this.authPassword });
+                        if (error) alert('Credenciales incorrectas.');
+                        else { this.showAuthModal = false; this.authEmail = ''; this.authPassword = ''; }
+                    }
+                },
+
+                async logoutUser() {
+                    await supabaseClient.auth.signOut();
+                    alert('Sesión cerrada.');
+                },
+
+                async loadConfig() {
+                    let { data } = await supabaseClient.from('config').select('*').eq('key', 'price').single();
+                    if (data) this.pricePerNight = Number(data.value);
+                },
+
+                async updatePriceInDB() {
+                    await supabaseClient.from('config').upsert({ key: 'price', value: String(this.pricePerNight) });
+                },
+
+                async loadTexts() {
+                    let { data } = await supabaseClient.from('config').select('*');
+                    if (data) {
+                        data.forEach(row => {
+                            this.siteTexts[row.key] = row.value;
+                        });
+                    }
+                },
+
+                async updateTextInDB(key, val) {
+                    await supabaseClient.from('config').upsert({ key: key, value: val });
+                },
+
+                async loadBlockedDates() {
+                    let { data } = await supabaseClient.from('blocked_dates').select('*');
+                    this.blockedDatesObj = {};
+                    if (data) data.forEach(r => this.blockedDatesObj[r.date_str] = true);
+                },
+
+                async loadAllBookings() {
+                    let { data } = await supabaseClient.from('bookings').select('*');
+                    if (data) this.allBookings = data;
+                },
+
+                changeClientMonth(dir) {
+                    this.clientMonth += dir;
+                    if (this.clientMonth > 11) { this.clientMonth = 0; this.clientYear++; }
+                    else if (this.clientMonth < 0) { this.clientMonth = 11; this.clientYear--; }
+                    this.generateClientCalendar();
+                },
+
+                generateClientCalendar() {
+                    let days = [];
+                    let firstDayIndex = new Date(this.clientYear, this.clientMonth, 1).getDay();
+                    firstDayIndex = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
+                    let totalDays = new Date(this.clientYear, this.clientMonth + 1, 0).getDate();
+
+                    for (let i = 0; i < firstDayIndex; i++) days.push({ dayNum: '', dateStr: null, status: 'empty' });
+
+                    for (let i = 1; i <= totalDays; i++) {
+                        let m = String(this.clientMonth + 1).padStart(2, '0');
+                        let d = String(i).padStart(2, '0');
+                        let dateStr = `${this.clientYear}-${m}-${d}`;
+                        let status = 'free';
+
+                        if (this.blockedDatesObj[dateStr]) status = 'blocked';
+                        else if (this.isDateBooked(dateStr)) status = 'booked';
+                        else if (dateStr === this.checkIn || dateStr === this.checkOut || (this.checkIn && this.checkOut && dateStr > this.checkIn && dateStr < this.checkOut)) {
+                            status = 'selected';
+                        }
+
+                        days.push({ dayNum: i, dateStr: dateStr, status: status });
+                    }
+                    this.clientCalendarDays = days;
+                },
+
+                selectClientDate(dateStr, status) {
+                    if (status === 'blocked' || status === 'booked') {
+                        alert('Este día no está disponible.');
+                        return;
+                    }
+
+                    if (this.selectionStep === 'in') {
+                        this.checkIn = dateStr;
+                        this.checkOut = '';
+                        this.totalNights = 0;
+                        this.totalPrice = 0;
+                        this.selectionStep = 'out';
+                        this.errorMessage = '';
+                    } else {
+                        if (dateStr <= this.checkIn) {
+                            this.checkIn = dateStr;
+                            this.checkOut = '';
+                            this.totalNights = 0;
+                            this.totalPrice = 0;
+                            this.selectionStep = 'out';
+                            return;
+                        }
+                        this.checkOut = dateStr;
+                        this.selectionStep = 'in';
+                        this.calculateTotalFromSelection();
+                    }
+                    this.generateClientCalendar();
+                },
+
+                calculateTotalFromSelection() {
+                    this.errorMessage = '';
+                    let start = new Date(this.checkIn);
+                    let end = new Date(this.checkOut);
+                    let diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+                    let curr = new Date(start);
+                    while (curr < end) {
+                        let dStr = curr.toISOString().split('T')[0];
+                        if (this.blockedDatesObj[dStr] || this.isDateBooked(dStr)) {
+                            this.errorMessage = `El rango seleccionado incluye días no disponibles (${dStr}).`;
+                            this.checkIn = ''; this.checkOut = '';
+                            this.totalNights = 0; this.totalPrice = 0;
+                            this.selectionStep = 'in';
+                            this.generateClientCalendar();
+                            return;
+                        }
+                        curr.setDate(curr.getDate() + 1);
+                    }
+
+                    this.totalNights = diffDays;
+                    this.totalPrice = diffDays * this.pricePerNight;
+                },
+
+                isDateBooked(dateStr) {
+                    return this.allBookings.some(b => dateStr >= b.check_in && dateStr < b.check_out);
+                },
+
+                proceedToCheckout() {
+                    if (!this.currentUser) {
+                        alert('Debes iniciar sesión para realizar una reserva.');
+                        this.showAuthModal = true;
+                        this.authMode = 'login';
+                        return;
+                    }
+                    if (this.totalNights <= 0 || !this.checkIn || !this.checkOut) {
+                        alert('Selecciona un rango válido de fechas en el calendario.');
+                        return;
+                    }
+                    this.rgpdAccepted = false;
+                    this.showPaymentModal = true;
+                },
+
+                async confirmBooking() {
+                    if (!this.tempBooking.name || !this.tempBooking.airline || !this.tempBooking.staffId) {
+                        alert('Rellena todos tus datos de tripulante.');
+                        return;
+                    }
+                    if (!this.rgpdAccepted) {
+                        alert('Debes aceptar la política de privacidad RGPD.');
+                        return;
+                    }
+
+                    this.isProcessing = true;
+
+                    setTimeout(async () => {
+                        let newBooking = {
+                            id: 'TCP-' + Math.floor(1000 + Math.random() * 9000),
+                            user_email: this.currentUser.email,
+                            name: this.tempBooking.name,
+                            airline: this.tempBooking.airline,
+                            staff_id: this.tempBooking.staffId,
+                            check_in: this.checkIn,
+                            check_out: this.checkOut,
+                            nights: this.totalNights,
+                            total: this.totalPrice,
+                            door_pin: Math.floor(1000 + Math.random() * 9000),
+                            room_pin: Math.floor(1000 + Math.random() * 9000),
+                            status: 'CONFIRMADO'
+                        };
+
+                        let { error } = await supabaseClient.from('bookings').insert([newBooking]);
+                        this.isProcessing = false;
+
+                        if (error) { 
+                            alert('Error al guardar la reserva en la base de datos.'); 
+                            return; 
+                        }
+
+                        await this.loadAllBookings();
+                        await this.fetchMyBookings();
+                        this.generateClientCalendar();
+                        this.generateAdminCalendar();
+                        
+                        this.showPaymentModal = false;
+                        this.tempBooking = { name: '', airline: '', staffId: '' };
+                        this.checkIn = '';
+                        this.checkOut = '';
+                        this.totalNights = 0;
+                        this.totalPrice = 0;
+                        this.activeTab = 'my-bookings';
+                        alert('¡Pago completado con éxito! Tus PINs de acceso (Puerta Principal y Habitación) ya están disponibles en Mis Reservas.');
+                    }, 1500);
+                },
+
+                async fetchMyBookings() {
+                    if (!this.currentUser) return;
+                    let { data } = await supabaseClient.from('bookings').select('*').eq('user_email', this.currentUser.email);
+                    this.myBookings = data || [];
+                },
+
+                async cancelMyBooking(id, checkInDateStr) {
+                    let diffHours = (new Date(checkInDateStr) - new Date()) / (1000 * 60 * 60);
+                    if (diffHours < 24) {
+                        alert('No se puede cancelar con menos de 24 horas de antelación.');
+                        return;
+                    }
+                    if (confirm('¿Estás seguro de cancelar esta reserva?')) {
+                        await supabaseClient.from('bookings').delete().eq('id', id);
+                        await this.loadAllBookings();
+                        await this.fetchMyBookings();
+                        this.generateClientCalendar();
+                        this.generateAdminCalendar();
+                        alert('Reserva cancelada correctamente.');
+                    }
+                },
+
+                async updateDoorPin(id, doorPin, roomPin) {
+                    await supabaseClient.from('bookings').update({ door_pin: Number(doorPin), room_pin: Number(roomPin) }).eq('id', id);
+                },
+
+                openAdminModal() { this.showAdminModal = true; },
+                loginAdmin() {
+                    if (this.adminPinInput === '1234') {
+                        this.isAdminLoggedIn = true;
+                        this.adminPinInput = '';
+                        this.generateAdminCalendar();
+                    } else { alert('PIN de Administrador incorrecto'); }
+                },
+
+                changeAdminMonth(dir) {
+                    this.adminMonth += dir;
+                    if (this.adminMonth > 11) { this.adminMonth = 0; this.adminYear++; }
+                    else if (this.adminMonth < 0) { this.adminMonth = 11; this.adminYear--; }
+                    this.generateAdminCalendar();
+                },
+
+                generateAdminCalendar() {
+                    let days = [];
+                    let firstDayIndex = new Date(this.adminYear, this.adminMonth, 1).getDay();
+                    firstDayIndex = (firstDayIndex === 0) ? 6 : firstDayIndex - 1;
+                    let totalDays = new Date(this.adminYear, this.adminMonth + 1, 0).getDate();
+
+                    for (let i = 0; i < firstDayIndex; i++) days.push({ dayNum: '', dateStr: null, status: 'empty' });
+
+                    for (let i = 1; i <= totalDays; i++) {
+                        let m = String(this.adminMonth + 1).padStart(2, '0');
+                        let d = String(i).padStart(2, '0');
+                        let dateStr = `${this.adminYear}-${m}-${d}`;
+                        let status = 'free';
+                        if (this.blockedDatesObj[dateStr]) status = 'blocked';
+                        else if (this.isDateBooked(dateStr)) status = 'booked';
+                        days.push({ dayNum: i, dateStr: dateStr, status: status });
+                    }
+                    this.adminCalendarDays = days;
+                },
+
+                async toggleDateStatus(dateStr) {
+                    if (this.isDateBooked(dateStr)) { alert('No se puede modificar un día con reserva activa.'); return; }
+                    if (this.blockedDatesObj[dateStr]) {
+                        await supabaseClient.from('blocked_dates').delete().eq('date_str', dateStr);
+                        delete this.blockedDatesObj[dateStr];
+                    } else {
+                        await supabaseClient.from('blocked_dates').insert([{ date_str: dateStr }]);
+                        this.blockedDatesObj[dateStr] = true;
+                    }
+                    this.generateAdminCalendar();
+                    this.generateClientCalendar();
+                },
+
+                async cancelBookingAdmin(id) {
+                    if (confirm('¿Eliminar esta reserva desde administración?')) {
+                        await supabaseClient.from('bookings').delete().eq('id', id);
+                        await this.loadAllBookings();
+                        this.generateAdminCalendar();
+                        this.generateClientCalendar();
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
